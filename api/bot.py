@@ -1,6 +1,9 @@
 import os
 import re
 import requests
+from http.server import BaseHTTPRequestHandler
+import json
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from telegram.ext import (
     Application, MessageHandler, filters,
@@ -238,27 +241,39 @@ def register_handlers(app):
     app.add_handler(conv)
 
 
-# ========== 🔥 VERCEL ENTRY 🔥 ==========
+# ========== VERCEL COMPATIBLE HANDLER ==========
 
-async def handler(request):
+from http.server import BaseHTTPRequestHandler
+import json
 
-    try:
-        if request.method != "POST":
-            return {"status": "running"}
+class handler(BaseHTTPRequestHandler):
 
-        data = await request.json()
+    def do_POST(self):
 
-        # Create fresh instance every request
+        content_length = int(self.headers.get('content-length', 0))
+        body = self.rfile.read(content_length)
+
+        data = json.loads(body)
+
+        # Create fresh telegram app
         app = Application.builder().token(TELEGRAM_TOKEN).build()
 
         register_handlers(app)
 
         update = Update.de_json(data, app.bot)
 
-        await app.process_update(update)
+        # Run async inside sync
+        import asyncio
+        asyncio.run(app.process_update(update))
 
-        return {"ok": True}
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"ok":true}')
 
-    except Exception as e:
-        print("ERROR:", e)
-        return {"error": str(e)}
+
+    def do_GET(self):
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"status":"running"}')
+
