@@ -215,37 +215,50 @@ async def copy_body(update, context):
     )
 
 
-# ========== APPLICATION ==========
-app = Application.builder().token(TELEGRAM_TOKEN).build()
+# ========== HANDLER REGISTRATION FUNCTION ==========
 
-app.add_handler(MessageHandler(filters.TEXT | filters.CAPTION, handle_message))
+def register_handlers(app):
 
-app.add_handler(CallbackQueryHandler(again_callback, pattern="again"))
-app.add_handler(CallbackQueryHandler(short_callback, pattern="short"))
-app.add_handler(CallbackQueryHandler(copy_title, pattern="copy_title"))
-app.add_handler(CallbackQueryHandler(copy_body, pattern="copy_body"))
+    app.add_handler(MessageHandler(filters.TEXT | filters.CAPTION, handle_message))
 
-app.add_handler(CommandHandler("settings", settings))
-app.add_handler(CommandHandler("clearprompt", clear_prompt))
+    app.add_handler(CallbackQueryHandler(again_callback, pattern="again"))
+    app.add_handler(CallbackQueryHandler(short_callback, pattern="short"))
+    app.add_handler(CallbackQueryHandler(copy_title, pattern="copy_title"))
+    app.add_handler(CallbackQueryHandler(copy_body, pattern="copy_body"))
 
-conv = ConversationHandler(
-    entry_points=[CommandHandler("setprompt", ask_prompt)],
-    states={SET_PROMPT: [MessageHandler(filters.TEXT, save_prompt)]},
-    fallbacks=[]
-)
+    app.add_handler(CommandHandler("settings", settings))
+    app.add_handler(CommandHandler("clearprompt", clear_prompt))
 
-app.add_handler(conv)
+    conv = ConversationHandler(
+        entry_points=[CommandHandler("setprompt", ask_prompt)],
+        states={SET_PROMPT: [MessageHandler(filters.TEXT, save_prompt)]},
+        fallbacks=[]
+    )
+
+    app.add_handler(conv)
 
 
 # ========== 🔥 VERCEL ENTRY 🔥 ==========
+
 async def handler(request):
 
-    if request.method == "POST":
+    try:
+        if request.method != "POST":
+            return {"status": "running"}
+
         data = await request.json()
 
+        # Create fresh instance every request
+        app = Application.builder().token(TELEGRAM_TOKEN).build()
+
+        register_handlers(app)
+
         update = Update.de_json(data, app.bot)
+
         await app.process_update(update)
 
-        return {"status": "ok"}
+        return {"ok": True}
 
-    return {"status": "running"}
+    except Exception as e:
+        print("ERROR:", e)
+        return {"error": str(e)}
