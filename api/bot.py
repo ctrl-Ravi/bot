@@ -250,30 +250,25 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
 
-        content_length = int(self.headers.get('content-length', 0))
-        body = self.rfile.read(content_length)
+    content_length = int(self.headers.get('content-length', 0))
+    body = self.rfile.read(content_length)
 
-        data = json.loads(body)
+    data = json.loads(body)
 
-        # Create fresh telegram app
-        app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-        register_handlers(app)
+    register_handlers(app)
 
-        update = Update.de_json(data, app.bot)
+    update = Update.de_json(data, app.bot)
 
-        # Run async inside sync
-        import asyncio
-        asyncio.run(app.process_update(update))
+    import asyncio
 
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'{"ok":true}')
+    async def run_update():
+        await app.initialize()          # 🔥 FIX LINE
+        await app.process_update(update)
 
+    asyncio.run(run_update())
 
-    def do_GET(self):
-
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'{"status":"running"}')
-
+    self.send_response(200)
+    self.end_headers()
+    self.wfile.write(b'{"ok":true}')
