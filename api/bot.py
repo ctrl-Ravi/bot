@@ -7,6 +7,7 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from http.server import BaseHTTPRequestHandler
 import json
 
+print("FILE LOADED 🔥")
 
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 OPENROUTER_KEY = os.environ.get('OPENROUTER_KEY')
@@ -219,21 +220,30 @@ async def copy_body(update, context):
 bot = Bot(token=TELEGRAM_TOKEN)
 
 class handler(BaseHTTPRequestHandler):
-
     def do_POST(self):
+
+    try:
+        print("👉 POST RECEIVED")
 
         content_length = int(self.headers.get('content-length', 0))
         body = self.rfile.read(content_length)
 
+        print("RAW BODY:", body)
+
         data = json.loads(body)
+
+        print("JSON:", data)
 
         update = Update.de_json(data, bot)
 
-        text = update.message.text
-        chat_id = update.message.chat_id
+        # ----- HANDLE MESSAGE -----
+        if update.message:
+            text = update.message.text or ""
+            chat_id = update.message.chat_id
 
-        try:
-            new = call_ai(text, chat_id)
+            print("TEXT:", text)
+
+            new = call_ai(text)
 
             parts = new.split("\n", 1)
 
@@ -245,18 +255,68 @@ class handler(BaseHTTPRequestHandler):
                 text=f"TITLE:\n{title}\n\nBODY:\n{body}"
             )
 
-        except Exception as e:
-            bot.send_message(chat_id=chat_id, text=str(e))
+        # ----- HANDLE CALLBACK -----
+        elif update.callback_query:
+            chat_id = update.callback_query.message.chat_id
+
+            bot.send_message(
+                chat_id=chat_id,
+                text="Button clicked 👍"
+            )
 
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b'{"ok":true}')
 
+    except Exception as e:
 
-    def do_GET(self):
+        print("❌ ERROR:", e)
 
+        # Telegram ko hamesha 200 do
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b'{"status":"running"}')
+        self.wfile.write(b'{"ok":true}')
+
+
+    # def do_POST(self):
+
+    #     print("👉 POST RECEIVED FROM TELEGRAM")
+
+    #     content_length = int(self.headers.get('content-length', 0))
+    #     body = self.rfile.read(content_length)
+
+    #     data = json.loads(body)
+
+    #     update = Update.de_json(data, bot)
+
+    #     text = update.message.text
+    #     chat_id = update.message.chat_id
+
+    #     try:
+    #         new = call_ai(text, chat_id)
+
+    #         parts = new.split("\n", 1)
+
+    #         title = parts[0]
+    #         body = parts[1] if len(parts) > 1 else ""
+
+    #         bot.send_message(
+    #             chat_id=chat_id,
+    #             text=f"TITLE:\n{title}\n\nBODY:\n{body}"
+    #         )
+
+    #     except Exception as e:
+    #         bot.send_message(chat_id=chat_id, text=str(e))
+
+    #     self.send_response(200)
+    #     self.end_headers()
+    #     self.wfile.write(b'{"ok":true}')
+
+
+    # def do_GET(self):
+
+    #     self.send_response(200)
+    #     self.end_headers()
+    #     self.wfile.write(b'{"status":"running"}')
 
 
