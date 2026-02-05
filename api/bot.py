@@ -1,15 +1,12 @@
 import os
 import re
 import requests
-from http.server import BaseHTTPRequestHandler
-import json
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from telegram.ext import (
-    Application, MessageHandler, filters,
-    ContextTypes, CallbackQueryHandler,
-    CommandHandler, ConversationHandler
-)
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from http.server import BaseHTTPRequestHandler
+import json
+
 
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 OPENROUTER_KEY = os.environ.get('OPENROUTER_KEY')
@@ -219,56 +216,47 @@ async def copy_body(update, context):
 
 
 # ========== HANDLER REGISTRATION FUNCTION ==========
-
-def register_handlers(app):
-
-    app.add_handler(MessageHandler(filters.TEXT | filters.CAPTION, handle_message))
-
-    app.add_handler(CallbackQueryHandler(again_callback, pattern="again"))
-    app.add_handler(CallbackQueryHandler(short_callback, pattern="short"))
-    app.add_handler(CallbackQueryHandler(copy_title, pattern="copy_title"))
-    app.add_handler(CallbackQueryHandler(copy_body, pattern="copy_body"))
-
-    app.add_handler(CommandHandler("settings", settings))
-    app.add_handler(CommandHandler("clearprompt", clear_prompt))
-
-    conv = ConversationHandler(
-        entry_points=[CommandHandler("setprompt", ask_prompt)],
-        states={SET_PROMPT: [MessageHandler(filters.TEXT, save_prompt)]},
-        fallbacks=[]
-    )
-
-    app.add_handler(conv)
-
-
-# ========== VERCEL COMPATIBLE HANDLER ==========
-
-from http.server import BaseHTTPRequestHandler
-import json
+bot = Bot(token=TELEGRAM_TOKEN)
 
 class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
 
-    content_length = int(self.headers.get('content-length', 0))
-    body = self.rfile.read(content_length)
+        content_length = int(self.headers.get('content-length', 0))
+        body = self.rfile.read(content_length)
 
-    data = json.loads(body)
+        data = json.loads(body)
 
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+        update = Update.de_json(data, bot)
 
-    register_handlers(app)
+        text = update.message.text
+        chat_id = update.message.chat_id
 
-    update = Update.de_json(data, app.bot)
+        try:
+            new = call_ai(text, chat_id)
 
-    import asyncio
+            parts = new.split("\n", 1)
 
-    async def run_update():
-        await app.initialize()          # 🔥 FIX LINE
-        await app.process_update(update)
+            title = parts[0]
+            body = parts[1] if len(parts) > 1 else ""
 
-    asyncio.run(run_update())
+            bot.send_message(
+                chat_id=chat_id,
+                text=f"TITLE:\n{title}\n\nBODY:\n{body}"
+            )
 
-    self.send_response(200)
-    self.end_headers()
-    self.wfile.write(b'{"ok":true}')
+        except Exception as e:
+            bot.send_message(chat_id=chat_id, text=str(e))
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"ok":true}')
+
+
+    def do_GET(self):
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"status":"running"}')
+
+
