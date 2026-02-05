@@ -7,7 +7,7 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from http.server import BaseHTTPRequestHandler
 import json
 
-print("FILE LOADED 🔥")
+print("FILE LOADEDj🔥")
 
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 OPENROUTER_KEY = os.environ.get('OPENROUTER_KEY')
